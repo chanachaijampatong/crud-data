@@ -10,7 +10,7 @@ interface ColumnInfo {
 }
 
 // Helper to get schema of table in 'public' schema
-async function getTableSchema(tableName: string = "rytc"): Promise<{
+async function getTableSchema(tableName: string = "student"): Promise<{
   columns: ColumnInfo[];
   primaryKey: string | null;
   availableTables: string[];
@@ -65,7 +65,7 @@ async function getTableSchema(tableName: string = "rytc"): Promise<{
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tableName = searchParams.get("table") || "rytc";
+    const tableName = searchParams.get("table") || "student";
 
     const { columns, primaryKey, availableTables } = await getTableSchema(tableName);
 
@@ -78,9 +78,9 @@ export async function GET(request: Request) {
       });
     }
 
-    // Query rows
-    const orderClause = primaryKey ? `ORDER BY "${primaryKey}" DESC` : "";
-    const rowsRes = await pool.query(`SELECT * FROM "${tableName}" ${orderClause} LIMIT 100;`);
+    // Query rows ordered by PK or first column
+    const orderClause = primaryKey ? `ORDER BY "${primaryKey}" ASC` : "";
+    const rowsRes = await pool.query(`SELECT * FROM "${tableName}" ${orderClause} LIMIT 500;`);
 
     return NextResponse.json({
       success: true,
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const tableName = body.tableName || "rytc";
+    const tableName = body.tableName || "student";
     const data = body.data || body;
 
     const { columns } = await getTableSchema(tableName);
@@ -117,21 +117,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: `ไม่พบตาราง ${tableName}` }, { status: 404 });
     }
 
-    // Filter valid columns that exist in schema
     const validCols: string[] = [];
     const values: any[] = [];
-    let paramIndex = 1;
 
     for (const col of columns) {
       const colName = col.column_name;
-      // Skip auto-increment/default primary key if value is not provided
-      if (col.is_primary_key && (data[colName] === undefined || data[colName] === null || data[colName] === "")) {
-        continue;
-      }
-      if (data[colName] !== undefined && data[colName] !== "") {
+      const rawVal = data[colName];
+
+      if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
         validCols.push(`"${colName}"`);
-        values.push(data[colName]);
-        paramIndex++;
+        // Format according to data type
+        if (col.data_type.includes("int")) {
+          values.push(parseInt(String(rawVal), 10));
+        } else if (col.data_type.includes("numeric") || col.data_type.includes("double")) {
+          values.push(parseFloat(String(rawVal)));
+        } else {
+          values.push(rawVal);
+        }
       }
     }
 
@@ -170,7 +172,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const tableName = body.tableName || "rytc";
+    const tableName = body.tableName || "student";
     const { id, primaryKey: customPk, data } = body;
 
     const { columns, primaryKey: detectedPk } = await getTableSchema(tableName);
@@ -191,12 +193,20 @@ export async function PUT(request: Request) {
     const rowData = data || body;
     for (const col of columns) {
       const colName = col.column_name;
-      // Do not update the primary key column itself
       if (colName === pk) continue;
 
       if (rowData[colName] !== undefined) {
         setClauses.push(`"${colName}" = $${paramIndex}`);
-        values.push(rowData[colName] === "" ? null : rowData[colName]);
+        const rawVal = rowData[colName];
+        if (rawVal === "" || rawVal === null) {
+          values.push(null);
+        } else if (col.data_type.includes("int")) {
+          values.push(parseInt(String(rawVal), 10));
+        } else if (col.data_type.includes("numeric") || col.data_type.includes("double")) {
+          values.push(parseFloat(String(rawVal)));
+        } else {
+          values.push(rawVal);
+        }
         paramIndex++;
       }
     }
@@ -205,7 +215,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: "ไม่มีข้อมูลที่ต้องอัปเดต" }, { status: 400 });
     }
 
-    values.push(id);
+    const pkCol = columns.find((c) => c.column_name === pk);
+    const pkValue = pkCol?.data_type.includes("int") ? parseInt(String(id), 10) : id;
+    values.push(pkValue);
+
     const query = `
       UPDATE "${tableName}"
       SET ${setClauses.join(", ")}
@@ -243,21 +256,24 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const customPk = searchParams.get("key");
-    const tableName = searchParams.get("table") || "rytc";
+    const tableName = searchParams.get("table") || "student";
 
     if (!id) {
       return NextResponse.json({ success: false, error: "ต้องระบุ id ที่ต้องการลบ" }, { status: 400 });
     }
 
-    const { primaryKey: detectedPk } = await getTableSchema(tableName);
+    const { columns, primaryKey: detectedPk } = await getTableSchema(tableName);
     const pk = customPk || detectedPk;
 
     if (!pk) {
       return NextResponse.json({ success: false, error: "ไม่พบคอลัมน์ Primary Key สำหรับลบข้อมูล" }, { status: 400 });
     }
 
+    const pkCol = columns.find((c) => c.column_name === pk);
+    const pkValue = pkCol?.data_type.includes("int") ? parseInt(String(id), 10) : id;
+
     const query = `DELETE FROM "${tableName}" WHERE "${pk}" = $1 RETURNING *;`;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [pkValue]);
 
     if (result.rowCount === 0) {
       return NextResponse.json({ success: false, error: "ไม่พบข้อมูลที่ต้องการลบ" }, { status: 404 });
