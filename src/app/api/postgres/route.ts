@@ -9,8 +9,8 @@ interface ColumnInfo {
   is_primary_key: boolean;
 }
 
-// Helper to get schema of table 'postgres' in 'public' schema
-async function getTableSchema(tableName: string = "postgres"): Promise<{
+// Helper to get schema of table in 'public' schema
+async function getTableSchema(tableName: string = "rytc"): Promise<{
   columns: ColumnInfo[];
   primaryKey: string | null;
   availableTables: string[];
@@ -65,7 +65,7 @@ async function getTableSchema(tableName: string = "postgres"): Promise<{
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tableName = searchParams.get("table") || "postgres";
+    const tableName = searchParams.get("table") || "rytc";
 
     const { columns, primaryKey, availableTables } = await getTableSchema(tableName);
 
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const tableName = body.tableName || "postgres";
+    const tableName = body.tableName || "rytc";
     const data = body.data || body;
 
     const { columns } = await getTableSchema(tableName);
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const tableName = body.tableName || "postgres";
+    const tableName = body.tableName || "rytc";
     const { id, primaryKey: customPk, data } = body;
 
     const { columns, primaryKey: detectedPk } = await getTableSchema(tableName);
@@ -243,7 +243,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const customPk = searchParams.get("key");
-    const tableName = searchParams.get("table") || "postgres";
+    const tableName = searchParams.get("table") || "rytc";
 
     if (!id) {
       return NextResponse.json({ success: false, error: "ต้องระบุ id ที่ต้องการลบ" }, { status: 400 });

@@ -25,7 +25,7 @@ interface ApiResponse {
 }
 
 export default function CrudPage() {
-  const [currentTable, setCurrentTable] = useState<string>("postgres");
+  const [currentTable, setCurrentTable] = useState<string>("rytc");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
@@ -191,15 +191,19 @@ export default function CrudPage() {
     }
   };
 
-  // Create sample postgres table
+  // Create sample rytc table
   const handleInitTable = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch("/api/postgres/init", { method: "POST" });
+      const res = await fetch("/api/postgres/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tableName: currentTable }),
+      });
       const result = await res.json();
       if (result.success) {
         showNotification("success", result.message);
-        fetchData("postgres");
+        fetchData(currentTable);
       } else {
         showNotification("error", result.error || "สร้างตารางไม่สำเร็จ");
       }
@@ -369,10 +373,10 @@ export default function CrudPage() {
               <ul className="list-disc list-inside space-y-1 text-rose-700 dark:text-rose-300">
                 <li>
                   เปิดไฟล์ <code className="bg-rose-200/50 dark:bg-rose-900/50 px-1 py-0.5 rounded">.env.local</code>{" "}
-                  ในโปรเจกต์ และตรวจสอบรหัสผ่าน <code className="font-mono">PGPASSWORD</code>
+                  ในโปรเจกต์ และตรวจสอบรหัสผ่าน <code className="font-mono">PGPASSWORD</code> ของ user <code className="font-mono">rytc</code>
                 </li>
                 <li>
-                  หรือระบุ <code className="font-mono">DATABASE_URL=postgresql://postgres:รหัสผ่าน@localhost:5432/rytc</code>
+                  หรือระบุ <code className="font-mono">DATABASE_URL=postgresql://rytc:รหัสผ่าน@localhost:5432/postgres</code>
                 </li>
                 <li>ตรวจสอบว่า PostgreSQL Service กำลังรันอยู่บนพอร์ต 5432</li>
               </ul>
@@ -391,10 +395,10 @@ export default function CrudPage() {
           <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-2xl p-6 text-amber-800 dark:text-amber-200 space-y-4">
             <div className="flex items-center gap-2 text-lg font-semibold">
               <span>ℹ️</span>
-              <span>ยังไม่พบตาราง &quot;{currentTable}&quot; ใน Schema public ของฐานข้อมูล rytc</span>
+              <span>ยังไม่พบตาราง &quot;{currentTable}&quot; ใน Schema public</span>
             </div>
             <p className="text-sm">
-              คุณสามารถสร้างตาราง <code className="font-mono font-bold">postgres</code>{" "}
+              คุณสามารถสร้างตาราง <code className="font-mono font-bold">{currentTable}</code>{" "}
               ตัวอย่างพร้อมโครงสร้างและข้อมูลทดสอบได้ทันทีด้วยปุ่มด้านล่าง
             </p>
             {data.availableTables && data.availableTables.length > 0 && (
@@ -422,7 +426,7 @@ export default function CrudPage() {
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <span>🚀</span>
-                <span>{submitting ? "กำลังสร้างตาราง..." : "คลิกเพื่อสร้างตาราง 'postgres' ตัวอย่างทันที"}</span>
+                <span>{submitting ? "กำลังสร้างตาราง..." : `คลิกเพื่อสร้างตาราง '${currentTable}' ตัวอย่างทันที`}</span>
               </button>
             </div>
           </div>
